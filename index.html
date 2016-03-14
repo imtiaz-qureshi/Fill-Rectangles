@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Fill Polygon</title>
+        <link href="css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            .padding0 {
+                padding : 0px;
+            }
+        </style>
+    </head>
+  <body>
+    <div class="container-fluid">
+        <h3 style="margin-top: 20px; margin-bottom: 5px;">Fill Polygon</h3>
+        <p class="text-default" style="margin-bottom: 0px;">This example will allow you to draw a polygon structure and fill it with rectangles.</p>
+        <p class="text-default">Rectangle size <strong>10x20 pixels</strong></p>
+        <div class="clearfix">
+            <div class="col-md-6 col-sm-6 col-xs-6 padding0" id="clearButtonContainer" style="margin-bottom: 10px;">
+            </div>
+            <div class="col-md-6 col-sm-6 col-xs-6 padding0" style="margin-bottom: 10px;">
+                <!--<button class="btn btn-primary" style="margin-top:5px;">Display outer Rectangle</button>
+                <button class="btn btn-info" style="margin-top:5px;">Fill Polygon</button>-->
+            </div>
+        </div>
+        <textarea class="canvas-area" id="polygon" style="display:none;"></textarea>
+        <p class="text-default" style="margin-bottom: 0px;">Click on the plot area to start drawing a polygon. Click and drag any point to restructure your polygon.</p>
+        <p class="text-default">Click "<strong>Clear Polygon</strong>" to erase drawing.</p>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="js/bootstrap.min.js"></script>
+    <script language="javascript" src="js/jquery.canvasAreaDraw.js"></script>
+    <script>
+        var rightMost_x_point, leftMost_x_point, leftMost_y_point, topMost_y_point, bottomMost_y_point, bottomMost_x_point;
+        var c, ctx, result, polyCordinates;
+        
+        $(document).ready(function(){
+            // on document ready call canvas draw initialization
+            $('#polygon').canvasAreaDraw({
+              imageUrl: "img/bg.jpg"
+            });
+        });
+        
+        function drawRectangle(){
+            // dragRectangle : This function fetches polygon values from hidden textarea and parses them into x and y coordinates.
+            var polygonPoints = $('#polygon').val().split(',');
+            var xAxis_Array = [];
+            var yAxis_Array= [];
+            for(var i=0; i < polygonPoints.length; i++){
+              xAxis_Array.push(parseInt(polygonPoints[i]));
+              yAxis_Array.push(parseInt(polygonPoints[i+1]));
+              i++;
+            }
+            
+            // calculate left, right, bottom and top most points to draw an external rectangle convering polygon
+            rightMost_x_point = Math.max.apply(Math, xAxis_Array);
+            leftMost_x_point = Math.min.apply(Math, xAxis_Array);
+            leftMost_y_point = yAxis_Array[$.inArray(leftMost_x_point, xAxis_Array)];
+            topMost_y_point = Math.min.apply(Math, yAxis_Array);
+            bottomMost_y_point = Math.max.apply(Math, yAxis_Array);
+            bottomMost_x_point = xAxis_Array[$.inArray(bottomMost_y_point, yAxis_Array)];
+            
+            // initialize canvas
+            c= $("#canvas-container").find("canvas")[0];
+            ctx = c.getContext("2d");
+            
+            // uncomment the following lines to display external rectangle
+            /*
+            ctx.beginPath();
+            ctx.strokeStyle="green";
+            ctx.moveTo(leftMost_x_point,topMost_y_point);
+            ctx.lineTo(rightMost_x_point,topMost_y_point);
+            ctx.lineTo(rightMost_x_point,bottomMost_y_point);
+            ctx.lineTo(leftMost_x_point,bottomMost_y_point);
+            ctx.lineTo(leftMost_x_point,topMost_y_point);
+            ctx.stroke();
+            */
+            result = $('#polygon').val().split(',');
+            polyCordinates = [];
+            for(var k = 0; k < result.length;k++){
+              polyCordinates.push([parseInt(result[k]), parseInt(result[k+1])]);
+              k = k+1;
+            }
+            
+            // call function to plot imaginary points through polygon
+            plotPoints();
+        }
+        
+        function plotPoints(){
+            // iterate through plotted points and check if left top point is inside polygon, if true : check if remaining points are inside or out
+            var maxHeight = bottomMost_y_point - leftMost_y_point;
+            var startX = leftMost_x_point;
+            var startY = topMost_y_point;
+            var endX = leftMost_x_point;
+            var endY = bottomMost_y_point;
+            
+            while(startY <= endY){
+                // go top to bottom
+                while(startX <= rightMost_x_point){
+                    // go left to right
+                    if (isRectInPolygon([startX, startY], polyCordinates)) {
+                        //if left top point inside polygon
+                        checkIfPanelInside(startX, startY);
+                    }
+                    startX = startX + 10;
+                }
+                startX = leftMost_x_point;
+                startY = startY + 20;
+            }
+        }
+        
+        function checkIfPanelInside(startX, startY){
+            // check if the panel is inside polygon or not.
+            // if top right, bottom left and bottom right points are inside
+            if (isRectInPolygon([startX + 10, startY], polyCordinates) && isRectInPolygon([startX, startY + 20], polyCordinates) && isRectInPolygon([startX + 10, startY + 20], polyCordinates)) {
+                // only then place rectangle
+                //ctx.fillStyle = "rgb(255, 0, 255)";
+                //ctx.rect(startX, startY,10,20);
+                
+                ctx.fillStyle = "yellow";
+                ctx.fillRect(startX,startY, 9, 19);
+            
+                ctx.strokeStyle = "green";
+                ctx.lineWidth   = 2;
+                ctx.strokeRect(startX,startY, 9, 19);
+                
+                //ctx.stroke();
+            }
+        }
+        
+        function isRectInPolygon(point, vs) {
+            // check if point is inside polygon or not
+            // ray-casting algorithm based on
+            // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+            var x = point[0], y = point[1];
+            var inside = false;
+            for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+                var xi = vs[i][0], yi = vs[i][1];
+                var xj = vs[j][0], yj = vs[j][1];
+                var intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        };
+        
+    </script>
+  </body>
+</html>
